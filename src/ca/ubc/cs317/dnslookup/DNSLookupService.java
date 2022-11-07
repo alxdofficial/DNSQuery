@@ -174,17 +174,30 @@ public class DNSLookupService {
         } else {
             // TODO (PART 1/2): Implement this
             retrieveResultsFromServer(node, rootServer);
-            Set<ResourceRecord> results = cache.getCachedResults(node);
-//
-//            //we are going to create 3 nodes of type A AAAA and cname of the same domain to check for those types of results in the cache
-//            for (ResourceRecord r : results) {
-//                System.out.println(r.getType());
-//                if (r.getType() == RecordType.CNAME &&
-//                        !(resourceRecordSetContains(results, RecordType.A) ||
-//                                resourceRecordSetContains(results,RecordType.A))) {
-//                    getResults(new DNSNode(r.getHostName(), RecordType.A), indirectionLevel + 1);
-//                }
-//            }
+            DNSNode ANode = new DNSNode(node.getHostName(), RecordType.A);
+            DNSNode AAAANode = new DNSNode(node.getHostName(), RecordType.AAAA);
+            DNSNode CnameNode = new DNSNode(node.getHostName(), RecordType.CNAME);
+            Set<ResourceRecord> results = new HashSet<>();
+            results.addAll(cache.getCachedResults(ANode));
+            results.addAll(cache.getCachedResults(AAAANode));
+            results.addAll(cache.getCachedResults(CnameNode));
+//          //if we got an A or AAAA result
+            if (resourceRecordsContainsType(results, RecordType.A) ||
+                    resourceRecordsContainsType(results, RecordType.AAAA)) {
+                if (node.getType() == RecordType.A) {
+                    return cache.getCachedResults(ANode);
+                } else if (node.getType() == RecordType.AAAA) {
+                    return cache.getCachedResults(AAAANode);
+                }
+            } else if (resourceRecordsContainsType(results, RecordType.CNAME)) {
+                // if we got a cname result
+                if (cache.getCachedResults(CnameNode).iterator().hasNext()) {
+                    ResourceRecord cnameRecord = cache.getCachedResults(CnameNode).iterator().next();
+                    System.out.println("cname found, next query: " + cnameRecord.getHostName());
+                    DNSNode nextQueryNode = new DNSNode(cnameRecord.getHostName(), node.getType());
+                    return getResults(nextQueryNode, indirectionLevel + 1);
+                }
+            }
             return results;
         }
     }

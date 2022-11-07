@@ -200,7 +200,6 @@ public class DNSQueryHandler {
         } else {
             System.out.println("no valid response (transaction id dont match)");
         }
-
         return resourceRecordsToReturn;
     }
     private static int parseAnswer(byte[] message, int index, Set<ResourceRecord> set) {
@@ -277,12 +276,16 @@ public class DNSQueryHandler {
     private static int traverseTextAnswer(byte[] message, int index, StringBuilder name) {
         int finalIndex = index;
         int classNumber = (message[index] & 0xff);
-
+        boolean isLiteral = false; //this is here for the odd case where a pointer c0 points to index c0, without
+        //this check the program thinks the new index location is also a pointer.
         while (classNumber != 0) {
-            if (classNumber == 0xc0) {
+            if (classNumber == 0xc0 && !isLiteral) {
                 //compressed name
                 index = message[index + 1] & 0xff;
                 classNumber = (message[index] & 0xff);
+                if (classNumber == 0xc0) {
+                    isLiteral = true;
+                }
             } else {
                 //read normally
                 index++;
@@ -310,6 +313,15 @@ public class DNSQueryHandler {
     }
 
 //    f.gtld-servers.net
+
+    private static void printRecords(Set<ResourceRecord> set) {
+        for (ResourceRecord r : set) {
+            System.out.printf("%-30s %-5s %-8d %s\n", r.getHostName(),
+                    r.getType(), r.getTTL(), r.getTextResult());
+        }
+    }
+
+
 
 }
 
