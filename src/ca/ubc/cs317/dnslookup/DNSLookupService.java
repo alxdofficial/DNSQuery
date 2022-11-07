@@ -125,7 +125,8 @@ public class DNSLookupService {
             } else if (commandArgs[0].equalsIgnoreCase("dump")) {
                 // DUMP: Print all results still cached
                 cache.forEachNode(DNSLookupService::printResults);
-            } else {
+            }
+            else {
                 System.err.println("Invalid command. Valid commands are:");
                 System.err.println("\tlookup fqdn [type]");
                 System.err.println("\ttrace on|off");
@@ -170,11 +171,22 @@ public class DNSLookupService {
         } else if (indirectionLevel > MAX_INDIRECTION_LEVEL) {
             System.err.println("Maximum number of indirection levels reached.");
             return Collections.emptySet();
+        } else {
+            // TODO (PART 1/2): Implement this
+            retrieveResultsFromServer(node, rootServer);
+            Set<ResourceRecord> results = cache.getCachedResults(node);
+//
+//            //we are going to create 3 nodes of type A AAAA and cname of the same domain to check for those types of results in the cache
+//            for (ResourceRecord r : results) {
+//                System.out.println(r.getType());
+//                if (r.getType() == RecordType.CNAME &&
+//                        !(resourceRecordSetContains(results, RecordType.A) ||
+//                                resourceRecordSetContains(results,RecordType.A))) {
+//                    getResults(new DNSNode(r.getHostName(), RecordType.A), indirectionLevel + 1);
+//                }
+//            }
+            return results;
         }
-
-        // TODO (PART 1/2): Implement this
-
-        return cache.getCachedResults(node);
     }
 
     /**
@@ -207,12 +219,78 @@ public class DNSLookupService {
      * Query the next level DNS Server, if necessary
      *
      * @param node        Host name and record type of the query.
-     * @param nameservers List of name servers returned from the previous level to query the next level.
+     * @param records List of name servers returned from the previous level to query the next level.
      */
-    private static void queryNextLevel(DNSNode node, Set<ResourceRecord> nameservers) {
-        // TODO (PART 2): Implement this
+    private static void queryNextLevel(DNSNode node,Set<ResourceRecord> records) {
+        boolean done = false;
+        if (resourceRecordSetContains(records, RecordType.A,node) || resourceRecordSetContains(records, RecordType.AAAA,node)
+        || resourceRecordSetContains(records, RecordType.CNAME,node)) {
+            //if previous level returned a or aaaa or cname records, no need to query anymore.
+            done = true; //for debugging
+        } else if (resourceRecordsContainsType(records,RecordType.NS)) {
+            // if we get name servers, we query the first one, if the first one doesn't respond we query the next one until there is no more.
+            //if we exhaust all the NSs, print an error and give up.
 
+            //create a set of just NS records
+            Set<ResourceRecord> nsRecords = new HashSet<>();
+            for (ResourceRecord r : records) {
+                if (r.getType() == RecordType.NS) {nsRecords.add(r);}
+            }
+            //pick the first server in that set to query next, if this server don't work, change to another one
+            ResourceRecord nextServer = nsRecords.iterator().next();
+            boolean continueQueryingThisLevel = true;
+            int tries = 0;
+            //create a set of next servers that will be returned after we query this layer, if it is null, it means are query did not return proper response
+            Set<ResourceRecord> nextLevel = null;
+            while (nsRecords.iterator().hasNext() && continueQueryingThisLevel && tries < 5) {
+                tries++;
+                try {
+                    //create packet and send
+                    byte[] packeBuffer = new byte[256];
+                    String nextServerName = nextServer.getTextResult();
+                    DNSServerResponse response = DNSQueryHandler.buildAndSendQuery(packeBuffer,
+                            InetAddress.getByName(nextServerName),node);
+                    //update next servers list
+                    nextLevel = DNSQueryHandler.decodeAndCacheResponse(response.getTransactionID(),
+                            response.getResponse(), cache);
+                    if (nextLevel != null) {
+                        //next servers found
+                        continueQueryingThisLevel = false;
+                        queryNextLevel(node, nextLevel);
+                    } else {
+                        System.err.println("query failed because a level did not return valid next servers");
+                    }
+                } catch (IOException e) {
+                    System.err.println(e.getMessage());
+                    System.err.println("querying next level failed because IO exception");
+                }
+                nextServer = nsRecords.iterator().next();
+            }
+        } else {
+            System.err.println("query failed because no A/AAAA/CNAME found after querying all layers");
+        }
     }
+//
+
+    private static boolean resourceRecordSetContains(Set<ResourceRecord> set, RecordType type, DNSNode node) {
+        for (ResourceRecord rr : set) {
+            if (rr.getType() == type && Objects.equals(rr.getHostName(), node.getHostName())) {
+//                System.out.println(rr.getHostName() + " " + rr.getType() + " == " + type);
+                return true;
+            }
+        }
+        return false;
+    }
+    private static boolean resourceRecordsContainsType(Set<ResourceRecord> set, RecordType type) {
+        for (ResourceRecord rr : set) {
+            if (rr.getType() == type) {
+//                System.out.println(rr.getHostName() + " " + rr.getType() + " == " + type);
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     /**
      * Prints the result of a DNS query.
