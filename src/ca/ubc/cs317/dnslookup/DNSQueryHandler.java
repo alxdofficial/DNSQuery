@@ -88,7 +88,7 @@ public class DNSQueryHandler {
 
 
 
-        DatagramPacket queryPacket = new DatagramPacket(message, byteOffset + 1, server, DEFAULT_DNS_PORT);
+        DatagramPacket queryPacket = new DatagramPacket(message, byteOffset, server, DEFAULT_DNS_PORT);
         socket.send(queryPacket);
 //        System.out.println("packet sent");
         //clear buffer for receive
@@ -297,7 +297,7 @@ public class DNSQueryHandler {
                 classNumber = (message[index] & 0xff);
             }
         }
-        name.deleteCharAt(name.length()-1);
+        if (name.length() > 0) {name.deleteCharAt(name.length()-1);}
 //        System.out.println(name);
         //calculate final index;
         int compressed = 0;
@@ -324,4 +324,5 @@ public class DNSQueryHandler {
 
 
 }
+
 

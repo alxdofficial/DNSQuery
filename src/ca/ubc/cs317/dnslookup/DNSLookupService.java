@@ -173,32 +173,32 @@ public class DNSLookupService {
             return Collections.emptySet();
         } else {
             // TODO (PART 1/2): Implement this
-            retrieveResultsFromServer(node, rootServer);
+            //first check if we already have the answer
+            if (cache.getCachedResults(node).size() > 0) {
+                return cache.getCachedResults(node);
+            }
+
+                retrieveResultsFromServer(node, rootServer);
+
+            //create nodes of each type to help with searching in the cache
             DNSNode ANode = new DNSNode(node.getHostName(), RecordType.A);
             DNSNode AAAANode = new DNSNode(node.getHostName(), RecordType.AAAA);
             DNSNode CnameNode = new DNSNode(node.getHostName(), RecordType.CNAME);
-            Set<ResourceRecord> results = new HashSet<>();
-            results.addAll(cache.getCachedResults(ANode));
-            results.addAll(cache.getCachedResults(AAAANode));
-            results.addAll(cache.getCachedResults(CnameNode));
-//          //if we got an A or AAAA result
-            if (resourceRecordsContainsType(results, RecordType.A) ||
-                    resourceRecordsContainsType(results, RecordType.AAAA)) {
-                if (node.getType() == RecordType.A) {
-                    return cache.getCachedResults(ANode);
-                } else if (node.getType() == RecordType.AAAA) {
-                    return cache.getCachedResults(AAAANode);
-                }
-            } else if (resourceRecordsContainsType(results, RecordType.CNAME)) {
+            //first check if we have cnames not resolved
+            Set<ResourceRecord> results = new HashSet<>(cache.getCachedResults(CnameNode));
+            for (ResourceRecord r : results) {
                 // if we got a cname result
-                if (cache.getCachedResults(CnameNode).iterator().hasNext()) {
-                    ResourceRecord cnameRecord = cache.getCachedResults(CnameNode).iterator().next();
-                    System.out.println("cname found, next query: " + cnameRecord.getHostName());
-                    DNSNode nextQueryNode = new DNSNode(cnameRecord.getHostName(), node.getType());
-                    return getResults(nextQueryNode, indirectionLevel + 1);
+                if (r.getType() == RecordType.CNAME &&
+                        !(resourceRecordsContainsType(results, RecordType.A) ||
+                                resourceRecordsContainsType(results,RecordType.AAAA))) {
+                    return getResults(new DNSNode(r.getTextResult(), node.getType()), indirectionLevel + 1);
                 }
             }
-            return results;
+            //now we for sure have either A/AAAA results or our domain is bad
+            Set<ResourceRecord> returnResults = new HashSet<>();
+            if (node.getType() == RecordType.A) {returnResults.addAll(cache.getCachedResults(ANode));}
+            if (node.getType() == RecordType.AAAA) {returnResults.addAll(cache.getCachedResults(AAAANode));}
+            return returnResults;
         }
     }
 
