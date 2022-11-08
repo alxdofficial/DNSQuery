@@ -178,7 +178,7 @@ public class DNSLookupService {
                 return cache.getCachedResults(node);
             }
 
-                retrieveResultsFromServer(node, rootServer);
+            retrieveResultsFromServer(node, rootServer);
 
             //create nodes of each type to help with searching in the cache
             DNSNode ANode = new DNSNode(node.getHostName(), RecordType.A);
@@ -237,7 +237,7 @@ public class DNSLookupService {
     private static void queryNextLevel(DNSNode node,Set<ResourceRecord> records) {
         boolean done = false;
         if (resourceRecordSetContains(records, RecordType.A,node) || resourceRecordSetContains(records, RecordType.AAAA,node)
-        || resourceRecordSetContains(records, RecordType.CNAME,node)) {
+                || resourceRecordSetContains(records, RecordType.CNAME,node)) {
             //if previous level returned a or aaaa or cname records, no need to query anymore.
             done = true; //for debugging
         } else if (resourceRecordsContainsType(records,RecordType.NS)) {
